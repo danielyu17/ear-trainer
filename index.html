@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ear Trainer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================================
+       COLORS AND FONT
+       Navy like a dark stage, ivory like piano keys,
+       brass like piano hardware.
+       ============================================================ */
+    :root {
+      --night: #172238;   /* page background */
+      --panel: #1f2d47;   /* buttons and surfaces */
+      --case: #111a2c;    /* piano body */
+      --line: #2e3f5e;    /* borders */
+      --ivory: #f4efe3;   /* main text, white keys */
+      --muted: #9aa7c0;   /* secondary text */
+      --brass: #d9a94e;   /* accent, lit keys */
+      --ebony: #0f1626;   /* black keys */
+      --right: #6cc59a;
+      --wrong: #e07a7a;
+      --font: 'Bricolage Grotesque', system-ui, -apple-system, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html { background: var(--night); }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      color: var(--ivory);
+      background: var(--night);
+      -webkit-font-smoothing: antialiased;
+    }
+    button { font: inherit; color: inherit; }
+    :focus-visible { outline: 2px solid var(--brass); outline-offset: 3px; }
+
+    main { max-width: 760px; margin: 0 auto; padding: 40px 16px 64px; }
+
+    /* ---------- Header ---------- */
+    .top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 40px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .modes {
+      display: inline-flex;
+      padding: 4px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+    }
+    .mode {
+      border: 0;
+      background: transparent;
+      padding: 8px 18px;
+      border-radius: 999px;
+      color: var(--muted);
+      font-weight: 500;
+      cursor: pointer;
+    }
+    .mode[aria-selected="true"] { background: var(--ivory); color: var(--night); }
+
+    /* ---------- Play area ---------- */
+    .stage-row { display: flex; align-items: center; gap: 24px; }
+    .play {
+      flex: none;
+      width: 88px;
+      height: 88px;
+      border: 0;
+      border-radius: 50%;
+      background: var(--brass);
+      color: var(--night);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      transition: transform 0.12s;
+    }
+    .play:active { transform: scale(0.95); }
+    .play svg { width: 34px; height: 34px; margin-left: 4px; }
+
+    .prompt {
+      margin: 0 0 12px;
+      font-size: 1.6rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .stage-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .text-btn {
+      background: none;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 16px;
+      cursor: pointer;
+    }
+    .text-btn:hover { border-color: var(--muted); }
+
+    .segmented {
+      display: inline-flex;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 3px;
+    }
+    .segmented button {
+      border: 0;
+      background: none;
+      padding: 5px 12px;
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    .segmented button[aria-pressed="true"] { background: var(--panel); color: var(--ivory); }
+    .hidden { display: none !important; }
+
+    .shortcut { margin: 14px 0 0; color: var(--muted); font-size: 0.85rem; }
+
+    /* ---------- Answer buttons ---------- */
+    .answers {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+      margin-top: 32px;
+    }
+    .answers.intervals { grid-template-columns: repeat(4, 1fr); }
+    .answer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: 14px 6px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel);
+      font-size: 1.05rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-color 0.15s, opacity 0.2s;
+    }
+    .answer small { font-size: 0.75rem; font-weight: 400; color: var(--muted); }
+    /* In pitch mode, natural notes look like white keys and sharps like black keys */
+    .answer.natural { background: var(--ivory); border-color: var(--ivory); color: var(--night); }
+    .answer.sharp { background: var(--ebony); }
+    .answer:hover:not(:disabled) { border-color: var(--brass); }
+    .answer:disabled { cursor: default; }
+    /* These come after .natural/.sharp so they win */
+    .answer.correct { background: var(--right); border-color: var(--right); color: var(--night); }
+    .answer.wrong { background: var(--wrong); border-color: var(--wrong); color: var(--night); }
+    .answer.correct small, .answer.wrong small { color: inherit; opacity: 0.75; }
+    .answers.done .answer:not(.correct):not(.wrong) { opacity: 0.4; }
+
+    .feedback { min-height: 1.6em; margin: 18px 0 0; font-size: 1.05rem; font-weight: 600; }
+    .feedback.good { color: var(--right); }
+    .feedback.bad { color: var(--wrong); }
+
+    /* ---------- Piano ---------- */
+    .piano-wrap {
+      margin-top: 32px;
+      padding: 12px 20px 18px;
+      background: var(--case);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+    }
+    .bracket-layer { position: relative; height: 46px; }
+    .bracket {
+      position: absolute;
+      bottom: 6px;
+      height: 10px;
+      border: 2px solid var(--brass);
+      border-bottom: 0;
+      border-radius: 6px 6px 0 0;
+    }
+    .bracket-label {
+      position: absolute;
+      bottom: 22px;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--brass);
+    }
+    .bracket-label span { margin-left: 8px; font-weight: 400; color: var(--muted); }
+
+    .piano {
+      position: relative;
+      height: 150px;
+      border-top: 4px solid var(--brass);
+      border-radius: 2px;
+    }
+    .key {
+      position: absolute;
+      top: 0;
+      padding: 0;
+      border: 0;
+      cursor: default;
+      transition: background 0.2s, transform 0.08s;
+    }
+    .key.white {
+      height: 100%;
+      background: var(--ivory);
+      border-right: 1px solid #cfc8b6;
+      border-radius: 0 0 6px 6px;
+      box-shadow: inset 0 -6px 0 #e0d9c7;
+      z-index: 1;
+    }
+    .key.black {
+      height: 62%;
+      background: var(--ebony);
+      border-radius: 0 0 4px 4px;
+      box-shadow: inset 0 -4px 0 #2a3650;
+      z-index: 2;
+    }
+    .key-label {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 12px;
+      text-align: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .key.white .key-label { color: var(--night); }
+    .key.black .key-label { bottom: 8px; font-size: 0.62rem; color: var(--ivory); }
+    /* C keys always show a faint label so you can find your place */
+    .key.c .key-label { opacity: 0.35; font-weight: 400; }
+
+    .key.lit.white { background: var(--brass); box-shadow: inset 0 -6px 0 #b98a34; }
+    .key.lit.black { background: var(--brass); box-shadow: inset 0 -4px 0 #b98a34; }
+    .key.ghost.white { background: #f0c4bf; box-shadow: inset 0 -6px 0 #d9a39d; }
+    .key.ghost.black { background: #9a4f57; box-shadow: inset 0 -4px 0 #7a3a42; }
+    .key.lit .key-label, .key.ghost .key-label { opacity: 1; font-weight: 700; color: var(--night); }
+    .key.ghost.black .key-label { color: var(--ivory); }
+
+    .key.down { transform: translateY(3px); filter: brightness(1.08); }
+    .piano.unlocked .key { cursor: pointer; }
+    .piano.unlocked .key.white:not(.lit):not(.ghost):hover { background: #fffaf0; }
+    .piano.unlocked .key.black:not(.lit):not(.ghost):hover { background: #26324a; }
+
+    .piano-hint { margin: 14px 0 0; color: var(--muted); font-size: 0.85rem; }
+
+    /* ---------- Progress ---------- */
+    .progress {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 40px;
+      margin-top: 48px;
+    }
+    h2 { margin: 0 0 4px; font-size: 1.1rem; font-weight: 600; }
+    .muted { margin: 0; color: var(--muted); font-size: 0.9rem; }
+
+    .tally { margin: 6px 0 2px; font-size: 2.4rem; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+    .tally span { color: var(--muted); font-weight: 500; }
+    .streak { margin: 14px 0 0; font-size: 0.95rem; }
+    .streak strong { color: var(--brass); }
+
+    .stats { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 10px; }
+    .stat {
+      display: grid;
+      grid-template-columns: 3.2rem 1fr auto;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.95rem;
+    }
+    .stat-bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+    .stat-bar span { display: block; height: 100%; border-radius: 3px; }
+    .stat-num { min-width: 5.5rem; text-align: right; white-space: nowrap; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .reset {
+      margin-top: 18px;
+      padding: 0;
+      background: none;
+      border: 0;
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+
+    /* ---------- Phones ---------- */
+    @media (max-width: 560px) {
+      main { padding-top: 24px; }
+      .top { margin-bottom: 28px; }
+      h1 { font-size: 1.6rem; }
+      .stage-row { gap: 16px; }
+      .play { width: 72px; height: 72px; }
+      .play svg { width: 28px; height: 28px; }
+      .prompt { font-size: 1.25rem; }
+      .answers, .answers.intervals { grid-template-columns: repeat(4, 1fr); }
+      .piano-wrap { padding: 10px 10px 14px; }
+      .piano { height: 120px; }
+      .progress { grid-template-columns: 1fr; gap: 28px; }
+      .shortcut { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+      .key.down { transform: none; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header class="top">
+      <h1>Ear Trainer</h1>
+      <div class="modes" role="tablist" aria-label="Quiz type">
+        <button class="mode" role="tab" aria-selected="true" data-mode="pitch">Pitch</button>
+        <button class="mode" role="tab" aria-selected="false" data-mode="interval">Intervals</button>
+      </div>
+    </header>
+
+    <!-- Play area -->
+    <section>
+      <div class="stage-row">
+        <button class="play" id="playBtn" aria-label="Play">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg>
+        </button>
+        <div>
+          <p class="prompt" id="prompt">Press play to hear your first note.</p>
+          <div class="stage-actions">
+            <button class="text-btn" id="nextBtn">Next question</button>
+            <div class="segmented hidden" id="direction" aria-label="Interval direction">
+              <button data-dir="up" aria-pressed="true">Up</button>
+              <button data-dir="down" aria-pressed="false">Down</button>
+              <button data-dir="together" aria-pressed="false">Together</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="shortcut">Space to play or replay, N for the next question.</p>
+
+      <div class="answers" id="answers"></div>
+      <p class="feedback" id="feedback" aria-live="polite"></p>
+    </section>
+
+    <!-- Piano -->
+    <section class="piano-wrap">
+      <div class="bracket-layer" id="bracketLayer"></div>
+      <div class="piano" id="piano"></div>
+      <p class="piano-hint" id="pianoHint">Answer to see the notes on the piano.</p>
+    </section>
+
+    <!-- Progress -->
+    <section class="progress">
+      <div>
+        <h2>This session</h2>
+        <p class="tally"><span id="rightCount" style="color: var(--ivory);">0</span><span>/<span id="totalCount">0</span></span></p>
+        <p class="muted">answered right</p>
+        <p class="streak">Streak: <strong id="streak">0</strong></p>
+      </div>
+      <div>
+        <h2>Weak spots</h2>
+        <p class="muted">Worst first. Saved on this device.</p>
+        <ul class="stats" id="stats"></ul>
+        <button class="reset" id="resetBtn">Reset stats</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // ============================================================
+    // 1. SOUND
+    // ============================================================
+
+    let audioCtx = null;
+
+    // Browsers block sound until the user clicks something,
+    // so we create the audio engine the first time we need it.
+    function getAudio() {
+      if (!audioCtx) audioCtx = new AudioContext();
+      return audioCtx;
+    }
+
+    // Convert a MIDI note number to a frequency in Hz.
+    // MIDI 69 = A4 = 440 Hz. Each half step multiplies by 2^(1/12).
+    // Middle C (C4) is MIDI 60.
+    function midiToFreq(midi) {
+      return 440 * 2 ** ((midi - 69) / 12);
+    }
+
+    // Play one note. `delay` = seconds from now before it starts.
+    function playNote(midi, delay = 0, duration = 1.2) {
+      const ctx = getAudio();
+      const start = ctx.currentTime + delay;
+      const freq = midiToFreq(midi);
+
+      // Volume envelope: quick fade in, slow fade out (like a struck note)
+      const envelope = ctx.createGain();
+      envelope.connect(ctx.destination);
+      envelope.gain.setValueAtTime(0.0001, start);
+      envelope.gain.exponentialRampToValueAtTime(0.35, start + 0.01);
+      envelope.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+      // Two oscillators layered together sound fuller than one beep:
+      // the main note, plus a quieter one an octave higher.
+      const layers = [
+        { freq: freq,     type: 'triangle', level: 1.0 },
+        { freq: freq * 2, type: 'sine',     level: 0.3 },
+      ];
+      layers.forEach(layer => {
+        const osc = ctx.createOscillator();
+        const level = ctx.createGain();
+        osc.type = layer.type;
+        osc.frequency.value = layer.freq;
+        level.gain.value = layer.level;
+        osc.connect(level);
+        level.connect(envelope);
+        osc.start(start);
+        osc.stop(start + duration);
+      });
+    }
+
+    // ============================================================
+    // 2. MUSIC DATA
+    // ============================================================
+
+    const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+    // An interval is just a number of half steps ("semitones") between two notes.
+    const INTERVALS = [
+      { name: 'm2', full: 'minor 2nd',   semis: 1 },
+      { name: 'M2', full: 'major 2nd',   semis: 2 },
+      { name: 'm3', full: 'minor 3rd',   semis: 3 },
+      { name: 'M3', full: 'major 3rd',   semis: 4 },
+      { name: 'P4', full: 'perfect 4th', semis: 5 },
+      { name: 'TT', full: 'tritone',     semis: 6 },
+      { name: 'P5', full: 'perfect 5th', semis: 7 },
+      { name: 'm6', full: 'minor 6th',   semis: 8 },
+      { name: 'M6', full: 'major 6th',   semis: 9 },
+      { name: 'm7', full: 'minor 7th',   semis: 10 },
+      { name: 'M7', full: 'major 7th',   semis: 11 },
+      { name: 'P8', full: 'octave',      semis: 12 },
+    ];
+
+    // The on-screen piano covers G3 to G5, which includes every note the quiz can play.
+    const PIANO_LOW = 55;   // G3
+    const PIANO_HIGH = 79;  // G5
+
+    // Positions within an octave (0 = C) that are black keys: C#, D#, F#, G#, A#
+    const BLACK_KEYS = [1, 3, 6, 8, 10];
+
+    function isBlack(midi) { return BLACK_KEYS.includes(midi % 12); }
+    function noteName(midi) { return NOTE_NAMES[midi % 12]; }
+    function noteWithOctave(midi) { return noteName(midi) + (Math.floor(midi / 12) - 1); }
+    function findInterval(name) { return INTERVALS.find(i => i.name === name); }
+    function withArticle(word) { return (word.startsWith('o') ? 'an ' : 'a ') + word; }
+
+    // ============================================================
+    // 3. APP STATE
+    // ============================================================
+
+    let mode = 'pitch';       // 'pitch' or 'interval'
+    let direction = 'up';     // 'up', 'down' or 'together' (interval mode)
+    let question = null;      // the current question, or null if none yet
+    let answered = false;     // has the current question been answered?
+    let session = { right: 0, total: 0, streak: 0 };
+    let stats = loadStats();  // all-time accuracy, saved in the browser
+    let keyEls = {};          // MIDI number -> piano key element
+    let bracketInterval = null; // interval to draw above the piano, if any
+
+    const $ = id => document.getElementById(id);
+    const playBtn = $('playBtn');
+    const nextBtn = $('nextBtn');
+    const promptEl = $('prompt');
+    const directionEl = $('direction');
+    const answersEl = $('answers');
+    const feedbackEl = $('feedback');
+    const pianoEl = $('piano');
+    const bracketLayer = $('bracketLayer');
+    const pianoHint = $('pianoHint');
+    const statsEl = $('stats');
+
+    // ============================================================
+    // 4. THE PIANO
+    // ============================================================
+
+    // Build the keys once. White keys sit side by side; each black key
+    // sits on the line between two white keys.
+    function buildPiano() {
+      let whiteCount = 0;
+      for (let m = PIANO_LOW; m <= PIANO_HIGH; m++) if (!isBlack(m)) whiteCount++;
+      const whiteWidth = 100 / whiteCount;   // percent of the piano's width
+
+      let whitesSoFar = 0;
+      for (let m = PIANO_LOW; m <= PIANO_HIGH; m++) {
+        const key = document.createElement('button');
+        key.className = 'key ' + (isBlack(m) ? 'black' : 'white') + (m % 12 === 0 ? ' c' : '');
+        key.tabIndex = -1;
+        key.setAttribute('aria-label', noteWithOctave(m));
+
+        const label = document.createElement('span');
+        label.className = 'key-label';
+        label.textContent = (m % 12 === 0) ? noteWithOctave(m) : noteName(m);
+        key.appendChild(label);
+
+        if (isBlack(m)) {
+          key.style.left = (whitesSoFar * whiteWidth - whiteWidth * 0.3) + '%';
+          key.style.width = (whiteWidth * 0.6) + '%';
+        } else {
+          key.style.left = (whitesSoFar * whiteWidth) + '%';
+          key.style.width = whiteWidth + '%';
+          whitesSoFar++;
+        }
+
+        key.addEventListener('click', () => {
+          if (!answered) return;   // keys are locked until you answer, so you can't cheat
+          playNote(m);
+          pressKey(m);
+        });
+
+        pianoEl.appendChild(key);
+        keyEls[m] = key;
+      }
+    }
+
+    function clearPiano() {
+      Object.values(keyEls).forEach(k => {
+        k.classList.remove('lit', 'ghost', 'down');
+        k.tabIndex = -1;
+      });
+      pianoEl.classList.remove('unlocked');
+      bracketInterval = null;
+      drawBracket();
+    }
+
+    function unlockPiano() {
+      pianoEl.classList.add('unlocked');
+      Object.values(keyEls).forEach(k => k.tabIndex = 0);
+    }
+
+    // Briefly push a key down, like it's being played
+    function pressKey(midi) {
+      const key = keyEls[midi];
+      if (!key) return;
+      key.classList.add('down');
+      clearTimeout(key.pressTimer);
+      key.pressTimer = setTimeout(() => key.classList.remove('down'), 350);
+    }
+
+    // Draw the bracket connecting the two notes of an interval
+    function drawBracket() {
+      bracketLayer.innerHTML = '';
+      if (!bracketInterval) return;
+      const { low, high, interval } = bracketInterval;
+
+      const layerBox = bracketLayer.getBoundingClientRect();
+      const centerOf = m => {
+        const box = keyEls[m].getBoundingClientRect();
+        return box.left + box.width / 2 - layerBox.left;
+      };
+      const x1 = centerOf(low);
+      const x2 = centerOf(high);
+
+      const bracket = document.createElement('div');
+      bracket.className = 'bracket';
+      bracket.style.left = x1 + 'px';
+      bracket.style.width = (x2 - x1) + 'px';
+
+      const label = document.createElement('div');
+      label.className = 'bracket-label';
+      const steps = interval.semis === 1 ? '1 half step' : interval.semis + ' half steps';
+      label.innerHTML = `${interval.full}<span>${steps}</span>`;
+
+      bracketLayer.append(bracket, label);
+
+      // Center the label over the bracket, but keep it inside the piano
+      const half = label.offsetWidth / 2;
+      const center = Math.min(Math.max((x1 + x2) / 2, half), layerBox.width - half);
+      label.style.left = center + 'px';
+    }
+
+    window.addEventListener('resize', drawBracket);
+
+    // ============================================================
+    // 5. MAKING AND PLAYING QUESTIONS
+    // A question stores its notes as "events": which note, and when.
+    // ============================================================
+
+    function randomInt(min, max) {
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    // Pitch mode: one random note from C4 to B4. You name it.
+    function makePitchQuestion() {
+      const midi = randomInt(60, 71);
+      return {
+        answer: noteName(midi),
+        notes: [midi],
+        events: [{ midi, delay: 0 }],
+      };
+    }
+
+    // Interval mode: two notes. You name the distance between them.
+    function makeIntervalQuestion() {
+      const interval = INTERVALS[randomInt(0, INTERVALS.length - 1)];
+      const low = randomInt(55, 67);   // G3 to G4, so the top note never goes above G5
+      const high = low + interval.semis;
+
+      let events;
+      if (direction === 'up') {
+        events = [{ midi: low, delay: 0 }, { midi: high, delay: 0.7 }];
+      } else if (direction === 'down') {
+        events = [{ midi: high, delay: 0 }, { midi: low, delay: 0.7 }];
+      } else {
+        events = [{ midi: low, delay: 0 }, { midi: high, delay: 0 }];
+      }
+
+      return { answer: interval.name, interval, low, high, notes: [low, high], events };
+    }
+
+    // Play a question's notes. After you've answered, the keys move too.
+    function perform(events) {
+      events.forEach(e => {
+        playNote(e.midi, e.delay);
+        if (answered) setTimeout(() => pressKey(e.midi), e.delay * 1000);
+      });
+    }
+
+    function newQuestion() {
+      question = (mode === 'pitch') ? makePitchQuestion() : makeIntervalQuestion();
+      answered = false;
+      clearPiano();
+      setFeedback('', '');
+      renderAnswers();
+      promptEl.textContent = (mode === 'pitch') ? 'Which note is this?' : "What's the interval?";
+      pianoHint.textContent = 'Answer to see the notes on the piano.';
+      playBtn.setAttribute('aria-label', 'Replay');
+      perform(question.events);
+    }
+
+    // ============================================================
+    // 6. ANSWERING
+    // ============================================================
+
+    function renderAnswers() {
+      answersEl.innerHTML = '';
+      answersEl.classList.toggle('intervals', mode === 'interval');
+      answersEl.classList.remove('done');
+
+      if (mode === 'pitch') {
+        NOTE_NAMES.forEach(name => {
+          const btn = makeAnswerButton(name, name);
+          btn.classList.add(name.includes('#') ? 'sharp' : 'natural');
+          answersEl.appendChild(btn);
+        });
+      } else {
+        INTERVALS.forEach(i => {
+          const btn = makeAnswerButton(i.name, i.name);
+          const small = document.createElement('small');
+          small.textContent = i.full;
+          btn.appendChild(small);
+          answersEl.appendChild(btn);
+        });
+      }
+    }
+
+    function makeAnswerButton(value, text) {
+      const btn = document.createElement('button');
+      btn.className = 'answer';
+      btn.dataset.value = value;
+      btn.textContent = text;
+      btn.addEventListener('click', () => checkAnswer(value, btn));
+      return btn;
+    }
+
+    function checkAnswer(choice, btn) {
+      if (!question) { newQuestion(); return; }  // first click with no question: start one
+      if (answered) return;
+      answered = true;
+
+      const correct = (choice === question.answer);
+
+      // Session score and streak
+      session.total++;
+      if (correct) { session.right++; session.streak++; } else { session.streak = 0; }
+      $('rightCount').textContent = session.right;
+      $('totalCount').textContent = session.total;
+      $('streak').textContent = session.streak;
+
+      // All-time stats for this note or interval
+      const record = stats[mode][question.answer] || { right: 0, total: 0 };
+      record.total++;
+      if (correct) record.right++;
+      stats[mode][question.answer] = record;
+      saveStats();
+
+      // Answer buttons: correct one green, wrong guess red, the rest fade
+      answersEl.classList.add('done');
+      answersEl.querySelectorAll('.answer').forEach(b => {
+        b.disabled = true;
+        if (b.dataset.value === question.answer) b.classList.add('correct');
+      });
+      if (!correct) btn.classList.add('wrong');
+
+      // Feedback text
+      if (mode === 'pitch') {
+        setFeedback(correct ? `Correct, that's ${question.answer}.` : `That was ${question.answer}, not ${choice}.`,
+                    correct ? 'good' : 'bad');
+      } else {
+        const actual = question.interval.full;
+        const guessed = findInterval(choice).full;
+        setFeedback(correct ? `Correct, ${withArticle(actual)}.` : `That was ${withArticle(actual)}, not ${withArticle(guessed)}.`,
+                    correct ? 'good' : 'bad');
+      }
+
+      // Show it on the piano: gold for what played, rose for a wrong guess
+      question.notes.forEach(m => keyEls[m].classList.add('lit'));
+      if (!correct) {
+        const guessKey = (mode === 'pitch')
+          ? 60 + NOTE_NAMES.indexOf(choice)            // your guess, in the same octave
+          : question.low + findInterval(choice).semis; // where your interval would land
+        if (keyEls[guessKey]) keyEls[guessKey].classList.add('ghost');
+      }
+      if (mode === 'interval') {
+        bracketInterval = { low: question.low, high: question.high, interval: question.interval };
+        drawBracket();
+      }
+      unlockPiano();
+      pianoHint.textContent = correct
+        ? 'Tap any key to hear it.'
+        : 'Gold is what played. Rose is your guess. Tap any key to hear it.';
+
+      // Replay the notes so you hear and see them together
+      setTimeout(() => perform(question.events), 300);
+
+      renderStats();
+    }
+
+    function setFeedback(text, kind) {
+      feedbackEl.textContent = text;
+      feedbackEl.className = 'feedback ' + kind;
+    }
+
+    // ============================================================
+    // 7. STATS (saved in the browser so they survive a refresh)
+    // ============================================================
+
+    function loadStats() {
+      try {
+        const saved = JSON.parse(localStorage.getItem('earTrainerStats'));
+        if (saved && saved.pitch && saved.interval) return saved;
+      } catch (e) {}
+      return { pitch: {}, interval: {} };
+    }
+
+    function saveStats() {
+      try {
+        localStorage.setItem('earTrainerStats', JSON.stringify(stats));
+      } catch (e) {}
+    }
+
+    // Accuracy per note or interval, worst first
+    function renderStats() {
+      const entries = Object.entries(stats[mode]).filter(([, s]) => s.total > 0);
+      statsEl.innerHTML = '';
+
+      if (entries.length === 0) {
+        statsEl.innerHTML = '<li class="muted">Answer a few questions to see where you miss most.</li>';
+        return;
+      }
+
+      entries.sort((a, b) => (a[1].right / a[1].total) - (b[1].right / b[1].total));
+
+      entries.forEach(([name, s]) => {
+        const pct = Math.round(100 * s.right / s.total);
+        const color = pct < 60 ? 'var(--wrong)' : pct < 85 ? 'var(--brass)' : 'var(--right)';
+        const li = document.createElement('li');
+        li.className = 'stat';
+        li.innerHTML = `
+          <span>${name}</span>
+          <div class="stat-bar"><span style="width: ${pct}%; background: ${color};"></span></div>
+          <span class="stat-num">${pct}% of ${s.total}</span>`;
+        statsEl.appendChild(li);
+      });
+    }
+
+    // ============================================================
+    // 8. BUTTONS, KEYBOARD SHORTCUTS AND STARTUP
+    // ============================================================
+
+    playBtn.addEventListener('click', () => {
+      if (!question) newQuestion();
+      else perform(question.events);
+    });
+
+    nextBtn.addEventListener('click', newQuestion);
+
+    $('resetBtn').addEventListener('click', () => {
+      if (confirm('Reset all your stats?')) {
+        stats = { pitch: {}, interval: {} };
+        saveStats();
+        renderStats();
+      }
+    });
+
+    // Switching between Pitch and Intervals
+    document.querySelectorAll('.mode').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.mode').forEach(t => t.setAttribute('aria-selected', 'false'));
+        tab.setAttribute('aria-selected', 'true');
+        mode = tab.dataset.mode;
+        directionEl.classList.toggle('hidden', mode !== 'interval');
+        question = null;
+        answered = false;
+        clearPiano();
+        setFeedback('', '');
+        promptEl.textContent = (mode === 'pitch')
+          ? 'Press play to hear your first note.'
+          : 'Press play to hear your first interval.';
+        pianoHint.textContent = 'Answer to see the notes on the piano.';
+        playBtn.setAttribute('aria-label', 'Play');
+        renderAnswers();
+        renderStats();
+      });
+    });
+
+    // Up / Down / Together (applies from the next question)
+    directionEl.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        directionEl.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', 'false'));
+        btn.setAttribute('aria-pressed', 'true');
+        direction = btn.dataset.dir;
+      });
+    });
+
+    // Space = play or replay, N = next question
+    document.addEventListener('keydown', e => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        playBtn.click();
+      } else if (e.key === 'n' || e.key === 'N') {
+        newQuestion();
+      }
+    });
+
+    buildPiano();
+    renderAnswers();
+    renderStats();
+  </script>
+</body>
+</html>
